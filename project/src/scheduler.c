@@ -52,6 +52,7 @@ int execute_AGING (ready_queue * qAGING) {
             script_free_index (script_id);
         }
     }
+    return 0;
 }
 void AGE_PCBs (ready_queue * qAGING) {
     PCB *pcb = qAGING->head;

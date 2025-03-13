@@ -69,7 +69,7 @@ int script_add_script (const char *source) {
     script_load_script (scriptmemory.totalScripts, source);
     scriptmemory.totalLines += newlines;
     scriptmemory.totalScripts++;
-
+    return 0;
 }
 
 int count_lines (const char *filename) {

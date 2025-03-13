@@ -80,7 +80,12 @@ int interpreter (char *command_args[], int args_size) {
             return badcommand ();
         return help ();
 
-    } else if (strcmp (command_args[0], "quit") == 0) {
+    }else if (strcmp (command_args[0], "man") == 0) {
+        if (args_size != 2)
+            return badcommand ();
+        return man (command_args+1, args_size-1);
+    }
+    else if (strcmp (command_args[0], "quit") == 0) {
         //quit
         if (args_size != 1)
             return badcommand ();
@@ -165,6 +170,15 @@ set VAR STRING		Assigns a value to shell memory\n \
 print VAR		Displays the STRING assigned to VAR\n \
 source SCRIPT.TXT	Executes the file SCRIPT.TXT\n ";
     printf ("%s\n", help_string);
+    return 0;
+}
+int man (char *command_args[], int args_size) {
+    if (args_size != 1) {
+        return badcommand ();
+    }
+    //TODO : implement man
+    
+    printf ("man\n");
     return 0;
 }
 
@@ -343,6 +357,9 @@ int exec (char *args[], int args_size) {
         case AGING:
             schedule_sort (&readyQueue, pcbArray, scripts);
             break;
+        case INVALID:
+            printf ("Invalid policy\n");
+            break;
     }
 
     if (backgroundMode) {
@@ -366,6 +383,9 @@ int exec (char *args[], int args_size) {
             break;
         case AGING:
             execute_AGING (&readyQueue);
+            break;
+        case INVALID:
+            printf ("Invalid policy\n");
             break;
     }
     // print_script();

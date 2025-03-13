@@ -2,6 +2,7 @@ int interpreter (char *command_args[], int args_size);
 int help ();
 int help ();
 int quit ();
+int man (char *command_args[], int args_size);
 int set (char *var, char *value);
 int print (char *var);
 int source (char *script);
