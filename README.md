@@ -37,3 +37,19 @@ This project focuses on building a system interpreter in C. The project includes
   - **shellmemory.c**: Memory management for shell processes.
   - **Makefile**: Build configuration.
   - **Scripts**: Various test scripts for demonstrating functionality.
+## Getting Started
+### Prerequisites
+- GCC or another C compiler
+- Make (for building the project)
+### Compile and run the project
+```bash
+make mysh
+./mysh
+```
+
+
+
+
+
+
+
