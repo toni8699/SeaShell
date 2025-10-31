@@ -9,26 +9,48 @@ ready_queue readyQueue;
 static int pid = 1;             // start at 1, leave 0 for the batch script.
 
 void pcb_init (PCB * pcb) {
-    pcb->pid = pid;
+    pcb->pid = pid++;
     pcb->instruction = 0;
     pcb->next = NULL;
     pcb->prev = NULL;
+    pcb->process_index = -1;
+    pcb->priority = 0;
 }
 void pcb_free (PCB * pcb) {
     free (pcb);
 }
 
 PCB **create_pcb_array (int scripts) {
-    PCB **pcbArray = malloc (sizeof (PCB) * scripts);
-    // create a new PCB for each script
-    for (int i = 0; i < scriptmemory.totalScripts; i++) {
+    if (scripts <= 0) {
+        return NULL;
+    }
+
+    PCB **pcbArray = malloc (sizeof (PCB *) * scripts);
+    if (pcbArray == NULL) {
+        perror ("Failed to allocate PCB array");
+        return NULL;
+    }
+
+    int start_index = (int) scriptmemory.totalScripts - scripts;
+    if (start_index < 0) {
+        start_index = 0;
+    }
+
+    for (int i = 0; i < scripts; i++) {
+        int script_index = start_index + i;
         PCB *pcb = malloc (sizeof (PCB));
+        if (pcb == NULL) {
+            perror ("Failed to allocate PCB");
+            for (int j = 0; j < i; j++) {
+                free (pcbArray[j]);
+            }
+            free (pcbArray);
+            return NULL;
+        }
         pcb_init (pcb);
-        pcb->priority = scriptmemory.scripts[i].lines;
-        pcb->pid = pid;
-        pcb->process_index = i;
+        pcb->priority = scriptmemory.scripts[script_index].lines;
+        pcb->process_index = script_index;
         pcbArray[i] = pcb;
-        pid++;
     }
     return pcbArray;
 }

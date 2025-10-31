@@ -13,6 +13,7 @@
 #include "pcb.h"
 
 #include "scheduler.h"
+#include <errno.h>
 
 // int MAX_ARGS_SIZE = 3;
 
@@ -26,7 +27,10 @@ int badcommandexec () {
 }
 
 int badcommandFileExist (char *operation, char *var) {
-    printf ("my_mkdir: %s : already exists\n", var);
+    if (operation == NULL) {
+        operation = "command";
+    }
+    printf ("%s: %s : already exists\n", operation, var);
     return 1;
 }
 
@@ -92,10 +96,31 @@ int interpreter (char *command_args[], int args_size) {
         return quit ();
 
     } else if (strcmp (command_args[0], "set") == 0) {
-        //set
-        if (args_size != 3)
+        if (args_size < 3)
             return badcommand ();
-        return set (command_args[1], command_args[2]);
+
+        size_t buffer_len = 0;
+        for (int j = 2; j < args_size; j++) {
+            buffer_len += strlen (command_args[j]) + 1;     // space or null
+        }
+
+        char *value_buffer = malloc (buffer_len);
+        if (value_buffer == NULL) {
+            perror ("Failed to allocate set buffer");
+            return 1;
+        }
+
+        value_buffer[0] = '\0';
+        for (int j = 2; j < args_size; j++) {
+            strcat (value_buffer, command_args[j]);
+            if (j < args_size - 1) {
+                strcat (value_buffer, " ");
+            }
+        }
+
+        int result = set (command_args[1], value_buffer);
+        free (value_buffer);
+        return result;
 
     } else if (strcmp (command_args[0], "print") == 0) {
         if (args_size != 2)
@@ -188,34 +213,38 @@ int quit () {
 }
 
 int set (char *var, char *value) {
-    char *link = " ";
-
-    // Hint: If "value" contains multiple tokens, you'll need to loop through them, 
-    // concatenate each token to the buffer, and handle spacing appropriately. 
-    // Investigate how `strcat` works and how you can use it effectively here.
-
+    if (var == NULL || value == NULL) {
+        return 1;
+    }
     mem_set_value (var, value);
     return 0;
 }
 
 int run (char *command_args[], int args_size) {
     char **commands = calloc (args_size + 1, sizeof (char *));
+    if (commands == NULL) {
+        perror ("Failed to allocate run command buffer");
+        return 1;
+    }
     for (int i = 0; i < args_size; ++i) {
         commands[i] = command_args[i];
     }
     pid_t id = fork ();
     if (id < 0) {
         perror ("fork() failed");
+        free (commands);
         return 1;
     } else if (id == 0) {
         //Child process
         execvp (commands[0], commands);
         perror ("exec failed");
+        free (commands);
         exit (1);
 
     } else if (id > 0) {
         //Parent process
         waitpid (id, NULL, 0);
+        free (commands);
     }
     return 0;
 }
@@ -236,41 +265,39 @@ int my_pwd () {
 }
 
 int my_ls () {
-    struct dirent **list;
-
-    int n;
-    n = scandir (".", &list, 0, alphasort);
+    struct dirent **list = NULL;
+    int n = scandir (".", &list, NULL, alphasort);
+    if (n < 0) {
+        perror ("my_ls");
+        return 1;
+    }
     for (int i = 0; i < n; i++) {
         printf ("%s\n", list[i]->d_name);
+        free (list[i]);
     }
     free (list);
     return 0;
-
-
 }
 int my_mkdir (char *var) {
-    char *pathname = var;
-    int must_free = 0;
-    if (*pathname == '$') {
-        // lookup name
-        pathname = mem_get_value (pathname + 1);
-        if (pathname) {
-            // name exists, should free whatever we got
-            must_free = 1;
-        }
+    if (var == NULL) {
+        return badcommandmy_mkdir ();
     }
-    // If pathname doesn't exist or is invalid, return an error
-    if (!pathname || !str_isalphanum (pathname)) {
-        if (must_free)
-            free (pathname);
+
+    const char *pathname = var;
+    if (*pathname == '$') {
+        pathname = mem_get_value (var + 1);
+    }
+
+    if (pathname == NULL || !str_isalphanum ((char *) pathname)) {
         return badcommandmy_mkdir ();
     }
 
     if (mkdir (pathname, 0777) != 0) {
+        if (errno == EEXIST) {
+            return badcommandFileExist ("my_mkdir", (char *) pathname);
+        }
+        perror ("my_mkdir");
         return badcommandmy_mkdir ();
-    }
-    if (must_free) {
-        free (pathname);
     }
     return 0;
 }
@@ -329,24 +356,35 @@ int exec (char *args[], int args_size) {
     if (args_size < 2) {
         return badcommandexec ();
     }
-    // printf("args_size: %d\n", args_size);
-    int scripts;
-    enum POLICIES policy;
+
     int backgroundMode = strcmp (args[args_size - 1], "#") == 0;
     int policyIndex = args_size - (backgroundMode ? 2 : 1);
-    scripts = policyIndex;
-    // printf("total scripts: %d\n", scripts);
-    policy = get_policy (args[policyIndex]);
+    if (policyIndex <= 0) {
+        return badcommandexec ();
+    }
 
+    enum POLICIES policy = get_policy (args[policyIndex]);
     if (policy == INVALID) {
         return badcommandexec ();
     }
-    char line[MAX_LINE_LENGTH];
+
+    int scripts = policyIndex;
+    size_t base_index = scriptmemory.totalScripts;
     for (int i = 0; i < scripts; i++) {
-        script_add_script (args[i]);
+        if (script_add_script (args[i]) != 0) {
+            for (size_t j = base_index; j < scriptmemory.totalScripts; j++) {
+                script_free_index ((int) j);
+            }
+            scriptmemory.totalScripts = base_index;
+            return 1;
+        }
     }
-    // Schedule the scripts
+
     PCB **pcbArray = create_pcb_array (scripts);
+    if (pcbArray == NULL) {
+        return 1;
+    }
+
     switch (policy) {
         case FCFS:
         case RR:
@@ -359,16 +397,13 @@ int exec (char *args[], int args_size) {
             break;
         case INVALID:
             printf ("Invalid policy\n");
-            break;
+            free (pcbArray);
+            return 1;
     }
 
     if (backgroundMode) {
         allocate_batch_script ();
     }
-    // printf("current total script after : %ld\n", scriptmemory.totalScripts);
-    // print_script();
-    // print_queue (&readyQueue);
-    // exit(0);
 
     switch (policy) {
         case RR:
@@ -388,7 +423,8 @@ int exec (char *args[], int args_size) {
             printf ("Invalid policy\n");
             break;
     }
-    // print_script();
+
+    free (pcbArray);
     return 0;
 }
 

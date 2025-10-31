@@ -1,5 +1,7 @@
+#ifndef INTERPRETER_H
+#define INTERPRETER_H
+
 int interpreter (char *command_args[], int args_size);
-int help ();
 int help ();
 int quit ();
 int man (char *command_args[], int args_size);
@@ -24,3 +26,5 @@ int exec (char *args[], int args_size);
 
 void allocate_batch_script ();
 void extract_source (char *line, int current_scripts);
+
+#endif
