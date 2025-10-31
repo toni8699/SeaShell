@@ -1,4 +1,4 @@
-# Operating Systems Project
+# Custom Shell
 
 ## Overview
 This project focuses on building a system interpreter in C. The project includes components for process control, scheduling, shell interaction, and memory management.
